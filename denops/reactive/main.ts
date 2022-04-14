@@ -31,6 +31,10 @@ export async function main(denops: Denops): Promise<void> {
         return await julia.stdin.write(encoder.encode("versioninfo()\n"));
       }
     },
+    async tree() {
+      const ret = await denops.call("luaeval", "require('reactive').parse_buffer()");
+      console.log(ret);
+    }
   };
 
   await denops.cmd(
@@ -38,5 +42,8 @@ export async function main(denops: Denops): Promise<void> {
   );
   await denops.cmd(
     `command! Version call denops#notify("${denops.name}", "version", [])`,
+  );
+  await denops.cmd(
+    `command! Tree call denops#notify("${denops.name}", "tree", [])`,
   );
 }
