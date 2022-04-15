@@ -2,6 +2,27 @@ import { Denops } from "https://deno.land/x/denops_std@v3.3.0/mod.ts";
 import { echo } from "https://deno.land/x/denops_std@v3.3.0/helper/mod.ts";
 import { readLines } from "https://deno.land/std@0.134.0/io/mod.ts";
 
+type Expr = {
+  type: string;
+  range: Range;
+  identifiers: Identifier[];
+};
+
+type Identifier = {
+  range: Range;
+};
+
+type Range = {
+  start: {
+    row: number,
+    col: number,
+  },
+  end: {
+    row: number,
+    col: number,
+  },
+};
+
 export async function main(denops: Denops): Promise<void> {
 
   let julia: Deno.Process<{
@@ -32,8 +53,11 @@ export async function main(denops: Denops): Promise<void> {
       }
     },
     async tree() {
-      const ret = await denops.call("luaeval", "require('reactive').parse_buffer()");
-      console.log(ret);
+      const exprs = await denops.call(
+        "luaeval",
+        `require("${denops.name}").parse_buffer()`
+      ) as Expr[];
+      console.log(exprs);
     }
   };
 

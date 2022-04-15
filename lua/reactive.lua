@@ -2,7 +2,17 @@ local function add_identifier(list, node)
   if node:child_count() == 0 then
     if node:type() == "identifier" then
       local startRow, startCol, endRow, endCol = node:range()
-      table.insert(list, { startRow, startCol, endRow, endCol })
+
+      local range = {}
+      range["start"] = {
+        row = startRow,
+        col = startCol,
+      }
+      range["end"] = {
+        row = endRow,
+        col = endCol,
+      }
+      table.insert(list, { range = range })
     end
   else
     for child, _ in node:iter_children() do
@@ -26,9 +36,20 @@ local parse_buffer = function()
 
     if #ids > 0 then
       local startRow, startCol, endRow, endCol = child:range()
+
+      local range = {}
+      range["start"] = {
+        row = startRow,
+        col = startCol,
+      }
+      range["end"] = {
+        row = endRow,
+        col = endCol,
+      }
+
       table.insert(exprs, {
         type = child:type(),
-        range = { startRow, startCol, endRow, endCol },
+        range = range,
         identifiers = ids
       })
     end
