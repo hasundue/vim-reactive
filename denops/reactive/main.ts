@@ -11,7 +11,7 @@ export async function main(denops: Denops) {
   async function parse() {
     const exprs = await denops.call(
       "luaeval",
-      `require("${denops.name}").parse_buffer(${bufnr})`
+      `require("${denops.name}").parse_buffer(${bufnr}, "julia")`
     ) as Expr[];
     return exprs;
   }
