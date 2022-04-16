@@ -21,8 +21,8 @@ local function add_identifier(list, node)
   end
 end
 
-local parse_buffer = function()
-  local parser = vim.treesitter.get_parser()
+local parse_buffer = function(bufnr)
+  local parser = vim.treesitter.get_parser(bufnr, 'julia')
   local tstree = parser:parse()
 
   assert(#tstree == 1)

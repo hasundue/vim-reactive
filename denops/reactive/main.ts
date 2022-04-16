@@ -1,73 +1,83 @@
-import { Denops } from "https://deno.land/x/denops_std@v3.3.0/mod.ts";
-import { echo } from "https://deno.land/x/denops_std@v3.3.0/helper/mod.ts";
-import { readLines } from "https://deno.land/std@0.134.0/io/mod.ts";
+import type { Denops } from "./deps.ts";
+import { readLines, vim, helper, bufname, autocmd, option } from "./deps.ts";
+import { Server, Expr } from "./types.ts";
 
-type Expr = {
-  type: string;
-  range: Range;
-  identifiers: Identifier[];
-};
-
-type Identifier = {
-  range: Range;
-};
-
-type Range = {
-  start: {
-    row: number,
-    col: number,
-  },
-  end: {
-    row: number,
-    col: number,
-  },
-};
-
-export async function main(denops: Denops): Promise<void> {
-
-  let julia: Deno.Process<{
-    cmd: [string],
-    stdin: "piped",
-    stdout: "piped",
-  }>;
-
+export async function main(denops: Denops) {
+  let server: Server;
+  let bufnr: number;
+  let debugBufnum: number;
   const encoder = new TextEncoder();
+
+  async function parse() {
+    const exprs = await denops.call(
+      "luaeval",
+      `require("${denops.name}").parse_buffer(${bufnr})`
+    ) as Expr[];
+    return exprs;
+  }
+
+  async function debug() {
+    const exprs = await parse();
+    vim.appendbufline(denops, debugBufnum, 0, JSON.stringify(exprs, null, 2).split("\n"));
+  }
 
   denops.dispatcher = {
     async attach() {
-      julia = Deno.run({
+      server = Deno.run({
         cmd: ["julia"],
         stdin: "piped",
         stdout: "piped",
       });
-      for await (const line of readLines(julia.stdout)) {
-        echo(denops, line);
+      console.log("julia server attached to the buffer.");
+      bufnr = await vim.bufnr(denops);
+
+      for await (const line of readLines(server.stdout)) {
+        helper.echo(denops, line);
       }
     },
+
+    async initDebugBuffer() {
+      await option.buftype.setLocal(denops, "nofile");
+      await option.swapfile.setLocal(denops, false);
+      await option.buflisted.setLocal(denops, false);
+      await option.filetype.setLocal(denops, "vim-reactive");
+      debug();
+    },
+
+    async openDebugBuffer() {
+      if (!server) {
+        console.error("No server is attached to the buffer.");
+        return;
+      }
+
+      const filename = await vim.expand(denops, "%:t")
+      const name = bufname.format({
+        scheme: "reactive",
+        expr: "debug/" + filename,
+      })
+      debugBufnum = await vim.bufadd(denops, name);
+      await denops.cmd("vsplit `=name`", { name });
+
+      const winnr = await vim.bufwinnr(denops, bufnr);
+      await denops.cmd(`exe ${winnr} .. "wincmd w"`);
+    },
+
     async version() {
-      if (!julia) {
+      if (!server) {
         return;
       }
       else {
-        return await julia.stdin.write(encoder.encode("versioninfo()\n"));
+        return await server.stdin.write(encoder.encode("versioninfo()\n"));
       }
     },
-    async tree() {
-      const exprs = await denops.call(
-        "luaeval",
-        `require("${denops.name}").parse_buffer()`
-      ) as Expr[];
-      console.log(exprs);
-    }
   };
 
-  await denops.cmd(
-    `command! Reactive call denops#notify("${denops.name}", "attach", [])`,
-  );
-  await denops.cmd(
-    `command! Version call denops#notify("${denops.name}", "version", [])`,
-  );
-  await denops.cmd(
-    `command! Tree call denops#notify("${denops.name}", "tree", [])`,
-  );
+  await autocmd.group(denops, "reactive-debug", (helper) => {
+    helper.remove();
+    helper.define(
+      "BufReadCmd",
+      "reactive://debug/*",
+      `call denops#notify("${denops.name}", "initDebugBuffer", [])`,
+    );
+  });
 }
