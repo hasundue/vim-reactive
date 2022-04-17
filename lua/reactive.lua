@@ -5,12 +5,12 @@ local function add_identifier(list, node)
 
       local range = {}
       range["start"] = {
-        row = startRow,
-        col = startCol,
+        row = startRow + 1,
+        col = startCol + 1,
       }
       range["end"] = {
-        row = endRow,
-        col = endCol,
+        row = endRow + 1,
+        col = endCol + 1,
       }
       table.insert(list, { range = range })
     end
@@ -39,12 +39,12 @@ local parse_buffer = function(bufnr, lang)
 
       local range = {}
       range["start"] = {
-        row = startRow,
-        col = startCol,
+        row = startRow + 1,
+        col = startCol + 1,
       }
       range["end"] = {
-        row = endRow,
-        col = endCol,
+        row = endRow + 1,
+        col = endCol + 1,
       }
 
       table.insert(exprs, {

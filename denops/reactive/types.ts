@@ -1,4 +1,14 @@
-export type Expr = {
+export type Session = {
+  server: Deno.Process<{
+    cmd: [string],
+    stdin: "piped",
+    stdout: "piped",
+  }>;
+  bufnr: number;
+  debugBufnr?: number;
+}
+
+export type FlattenSyntaxTree = {
   type: string;
   range: Range;
   identifiers: Identifier[];
@@ -18,12 +28,7 @@ export type Position = {
   col: number;
 };
 
-export type Session = {
-  server: Deno.Process<{
-    cmd: [string],
-    stdin: "piped",
-    stdout: "piped",
-  }>;
-  bufnr: number;
-  debugBufnr?: number;
+export type Expr = {
+  str: string;
+  end: number;
 }

@@ -4,7 +4,6 @@ import { Session } from "./types.ts";
 import { parse } from "./funcs.ts";
 
 export function main(denops: Denops) {
-  // const encoder = new TextEncoder();
   const sessions: { [bufnr: number]: Session } = {};
 
   denops.dispatcher = {
@@ -19,7 +18,6 @@ export function main(denops: Denops) {
         }),
         bufnr,
       };
-      console.log("julia server attached to the buffer.");
 
       await autocmd.group(denops, "reactive-debug", (helper) => {
         helper.remove();
@@ -29,6 +27,8 @@ export function main(denops: Denops) {
           `call denops#notify("${denops.name}", "debug", [])`,
         );
       });
+
+      console.log("julia server attached to the buffer.");
     },
 
     async debug() {
@@ -55,11 +55,11 @@ export function main(denops: Denops) {
         return;
       }
 
-      const filename = await vim.expand(denops, "%:t")
+      const filename = await vim.expand(denops, "%:t");
       const name = bufname.format({
         scheme: "reactive",
         expr: "debug/" + filename,
-      })
+      });
       await batch(denops, async (denops) => {
         await denops.cmd("vsplit");
         await buffer.open(denops, name);

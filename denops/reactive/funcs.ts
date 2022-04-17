@@ -1,11 +1,32 @@
 import type { Denops } from "./deps.ts";
-import type { Expr, Session } from "./types.ts";
+import { vim } from "./deps.ts";
+import type { Session, FlattenSyntaxTree, Expr } from "./types.ts";
 
 export async function parse(denops: Denops, session: Session) {
-  const exprs = await denops.call(
+  const bufnr = session.bufnr;
+
+  const trees = await denops.call(
     "luaeval",
-    `require("${denops.name}").parse_buffer(${session.bufnr}, "julia")`
-  ) as Expr[];
+    `require("${denops.name}").parse_buffer(${bufnr}, "julia")`
+  ) as FlattenSyntaxTree[];
+
+  const exprs = await Promise.all(trees.map(async tree => {
+    const { start, end } = tree.range;
+
+    const lines = await vim.getbufline(denops, bufnr, start.row, end.row);
+    const l = lines.length;
+
+    lines[0] = lines[0].slice(start.col - 1);
+    lines[l-1] = lines[l-1].slice(0, end.col - 1);
+
+    const expr: Expr = {
+      str: lines.join("\n"),
+      end: end.row,
+    };
+
+    return expr;
+  }));
+
   return exprs;
 }
 
