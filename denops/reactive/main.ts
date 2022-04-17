@@ -35,9 +35,15 @@ export function main(denops: Denops) {
       const bufnr = await vim.bufnr(denops);
       const session = sessions[bufnr];
 
+      if (!session.debugBufnr) return;
+
+      const winid = await vim.bufwinid(denops, session.debugBufnr);
+      if (winid < 0) return;
+
       const exprs = await parse(denops, session);
-      await vim.deletebufline(denops, session.debugBufnr, 1, '$');
-      await vim.appendbufline(denops, session.debugBufnr, 0, JSON.stringify(exprs, null, 2).split("\n"));
+
+      await denops.cmd(`silent call deletebufline(${session.debugBufnr}, 1, "$")`);
+      await vim.setbufline(denops, session.debugBufnr, 1, JSON.stringify(exprs, null, 2).split("\n"));
     },
 
     async openDebugBuffer() {
