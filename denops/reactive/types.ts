@@ -18,8 +18,12 @@ export type Position = {
   col: number;
 };
 
-export type Server = Deno.Process<{
-  cmd: [string],
-  stdin: "piped",
-  stdout: "piped",
-}>;
+export type Session = {
+  server: Deno.Process<{
+    cmd: [string],
+    stdin: "piped",
+    stdout: "piped",
+  }>;
+  bufnr: number;
+  debugBufnr?: number;
+}

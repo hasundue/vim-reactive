@@ -1,51 +1,50 @@
 import type { Denops } from "./deps.ts";
-import { readLines, vim, helper, bufname, autocmd, option } from "./deps.ts";
-import { Server, Expr } from "./types.ts";
+import { vim, autocmd, bufname, option, buffer, batch } from "./deps.ts";
+import { Session } from "./types.ts";
+import { parse } from "./funcs.ts";
 
-export async function main(denops: Denops) {
-  let server: Server;
-  let bufnr: number;
-  let debugBufnum: number;
-  const encoder = new TextEncoder();
-
-  async function parse() {
-    const exprs = await denops.call(
-      "luaeval",
-      `require("${denops.name}").parse_buffer(${bufnr}, "julia")`
-    ) as Expr[];
-    return exprs;
-  }
-
-  async function debug() {
-    const exprs = await parse();
-    vim.appendbufline(denops, debugBufnum, 0, JSON.stringify(exprs, null, 2).split("\n"));
-  }
+export function main(denops: Denops) {
+  // const encoder = new TextEncoder();
+  const sessions: { [bufnr: number]: Session } = {};
 
   denops.dispatcher = {
     async attach() {
-      server = Deno.run({
-        cmd: ["julia"],
-        stdin: "piped",
-        stdout: "piped",
-      });
-      console.log("julia server attached to the buffer.");
-      bufnr = await vim.bufnr(denops);
+      const bufnr = await vim.bufnr(denops);
 
-      for await (const line of readLines(server.stdout)) {
-        helper.echo(denops, line);
-      }
+      sessions[bufnr] = {
+        server: Deno.run({
+          cmd: ["julia"],
+          stdin: "piped",
+          stdout: "piped",
+        }),
+        bufnr,
+      };
+      console.log("julia server attached to the buffer.");
+
+      await autocmd.group(denops, "reactive-debug", (helper) => {
+        helper.remove();
+        helper.define(
+          ["InsertLeave", "TextChanged"],
+          `<buffer=${bufnr}>`,
+          `call denops#notify("${denops.name}", "debug", [])`,
+        );
+      });
     },
 
-    async initDebugBuffer() {
-      await option.buftype.setLocal(denops, "nofile");
-      await option.swapfile.setLocal(denops, false);
-      await option.buflisted.setLocal(denops, false);
-      await option.filetype.setLocal(denops, "vim-reactive");
-      debug();
+    async debug() {
+      const bufnr = await vim.bufnr(denops);
+      const session = sessions[bufnr];
+
+      const exprs = await parse(denops, session);
+      await vim.deletebufline(denops, session.debugBufnr, 1, '$');
+      await vim.appendbufline(denops, session.debugBufnr, 0, JSON.stringify(exprs, null, 2).split("\n"));
     },
 
     async openDebugBuffer() {
-      if (!server) {
+      const bufnr = await vim.bufnr(denops);
+      const session = sessions[bufnr];
+
+      if (!session) {
         console.error("No server is attached to the buffer.");
         return;
       }
@@ -55,29 +54,20 @@ export async function main(denops: Denops) {
         scheme: "reactive",
         expr: "debug/" + filename,
       })
-      debugBufnum = await vim.bufadd(denops, name);
-      await denops.cmd("vsplit `=name`", { name });
+      await batch(denops, async (denops) => {
+        await denops.cmd("vsplit");
+        await buffer.open(denops, name);
+      });
+      session.debugBufnr = await vim.bufnr(denops);
 
-      const winnr = await vim.bufwinnr(denops, bufnr);
+      await option.buftype.setLocal(denops, "nofile");
+      await option.swapfile.setLocal(denops, false);
+      await option.buflisted.setLocal(denops, false);
+      await option.filetype.setLocal(denops, "vim-reactive");
+
+      const winnr = await vim.bufwinnr(denops, session.bufnr);
       await denops.cmd(`exe ${winnr} .. "wincmd w"`);
-    },
-
-    async version() {
-      if (!server) {
-        return;
-      }
-      else {
-        return await server.stdin.write(encoder.encode("versioninfo()\n"));
-      }
+      denops.cmd(`call denops#notify("${denops.name}", "debug", [])`);
     },
   };
-
-  await autocmd.group(denops, "reactive-debug", (helper) => {
-    helper.remove();
-    helper.define(
-      "BufReadCmd",
-      "reactive://debug/*",
-      `call denops#notify("${denops.name}", "initDebugBuffer", [])`,
-    );
-  });
 }
