@@ -1,49 +1,61 @@
 import type { Denops } from "./deps.ts";
-import { vim, autocmd, bufname, option, buffer, batch } from "./deps.ts";
+import { vim, nvim, autocmd, bufname, option, helper, buffer, batch } from "./deps.ts";
+import { readLines } from "./deps.ts";
 import { Session } from "./types.ts";
 import { parse } from "./funcs.ts";
+import { debug } from "./debug.ts";
 
 export function main(denops: Denops) {
   const sessions: { [bufnr: number]: Session } = {};
+  const encoder = new TextEncoder();
 
   denops.dispatcher = {
     async attach() {
       const bufnr = await vim.bufnr(denops);
+      const nsid = await nvim.nvim_create_namespace(denops, denops.name) as number;
 
-      sessions[bufnr] = {
+      const session = {
         server: Deno.run({
           cmd: ["julia"],
           stdin: "piped",
           stdout: "piped",
         }),
         bufnr,
+        namespaceId: nsid,
       };
+
+      sessions[bufnr] = session;
 
       await autocmd.group(denops, "reactive-debug", (helper) => {
         helper.remove();
         helper.define(
           ["InsertLeave", "TextChanged"],
           `<buffer=${bufnr}>`,
-          `call denops#notify("${denops.name}", "debug", [])`,
+          `call denops#notify("${denops.name}", "eval", [])`,
         );
       });
 
       console.log("julia server attached to the buffer.");
+
+      for await (const line of readLines(session.server.stdout)) {
+        helper.echo(denops, line);
+      }
     },
 
-    async debug() {
+    async eval() {
       const bufnr = await vim.bufnr(denops);
       const session = sessions[bufnr];
 
-      if (!session.debugBufnr) return;
-
-      const winid = await vim.bufwinid(denops, session.debugBufnr);
-      if (winid < 0) return;
+      if (!session) {
+        console.error("No server is attached to the buffer.");
+        return;
+      }
 
       const exprs = await parse(denops, session);
 
-      await denops.cmd(`silent call deletebufline(${session.debugBufnr}, 1, "$")`);
-      await vim.setbufline(denops, session.debugBufnr, 1, JSON.stringify(exprs, null, 2).split("\n"));
+      debug(denops, session, exprs);
+
+      session.server.stdin.write(encoder.encode(exprs[0].str + "\n"));
     },
 
     async openDebugBuffer() {
@@ -73,7 +85,6 @@ export function main(denops: Denops) {
 
       const winnr = await vim.bufwinnr(denops, session.bufnr);
       await denops.cmd(`exe ${winnr} .. "wincmd w"`);
-      denops.cmd(`call denops#notify("${denops.name}", "debug", [])`);
     },
   };
 }

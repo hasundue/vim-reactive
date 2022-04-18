@@ -5,6 +5,7 @@ export type Session = {
     stdout: "piped",
   }>;
   bufnr: number;
+  namespaceId: number;
   debugBufnr?: number;
 }
 
