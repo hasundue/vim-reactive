@@ -12,6 +12,12 @@ export function main(denops: Denops) {
   denops.dispatcher = {
     async attach() {
       const bufnr = await vim.bufnr(denops);
+
+      if (sessions[bufnr]) {
+        console.error("Server is already attached to the buffer.");
+        return;
+      }
+
       const nsid = await nvim.nvim_create_namespace(denops, denops.name) as number;
 
       const session = {
@@ -36,15 +42,12 @@ export function main(denops: Denops) {
       });
 
       console.log("julia server attached to the buffer.");
-
-      for await (const line of readLines(session.server.stdout)) {
-        helper.echo(denops, line);
-      }
     },
 
     async eval() {
       const bufnr = await vim.bufnr(denops);
       const session = sessions[bufnr];
+      const nsid = session.namespaceId;
 
       if (!session) {
         console.error("No server is attached to the buffer.");
@@ -52,10 +55,24 @@ export function main(denops: Denops) {
       }
 
       const exprs = await parse(denops, session);
-
       debug(denops, session, exprs);
 
-      session.server.stdin.write(encoder.encode(exprs[0].str + "\n"));
+      await nvim.nvim_buf_clear_namespace(denops, bufnr, nsid, 0, -1);
+
+      for (const expr of exprs) {
+        session.server.stdin.write(encoder.encode(expr.str + "\n"));
+        session.server.stdin.write(encoder.encode(":end\n"));
+
+        for await (const line of readLines(session.server.stdout)) {
+          if (line.includes(":end")) break;
+
+          const opts = {
+            virt_text: [[ line, "StatusLine" ]],
+          };
+
+          nvim.nvim_buf_set_extmark(denops, bufnr, nsid, expr.end-1, 0, opts);
+        }
+      }
     },
 
     async openDebugBuffer() {
