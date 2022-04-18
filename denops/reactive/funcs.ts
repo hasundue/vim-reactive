@@ -16,8 +16,8 @@ export async function parse(denops: Denops, session: Session) {
     const lines = await vim.getbufline(denops, bufnr, start.row, end.row);
     const l = lines.length;
 
-    lines[0] = lines[0].slice(start.col - 1);
-    lines[l-1] = lines[l-1].slice(0, end.col - 1);
+    lines[0] = lines[0].slice(start.col-1);
+    lines[l-1] = lines[l-1].slice(0, end.col-1);
 
     const expr: Expr = {
       str: lines.join("\n"),
