@@ -1,5 +1,5 @@
 import type { Denops } from "./deps.ts";
-import { vim, nvim, autocmd, bufname, option, helper, buffer, batch } from "./deps.ts";
+import { vim, nvim, autocmd, bufname, option, buffer, batch } from "./deps.ts";
 import { readLines } from "./deps.ts";
 import { Session } from "./types.ts";
 import { parse } from "./funcs.ts";
@@ -70,7 +70,7 @@ export function main(denops: Denops) {
             virt_text: [[ line, "StatusLine" ]],
           };
 
-          nvim.nvim_buf_set_extmark(denops, bufnr, nsid, expr.end-1, 0, opts);
+          nvim.nvim_buf_set_extmark(denops, bufnr, nsid, expr.line, 0, opts);
         }
       }
     },

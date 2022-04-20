@@ -31,5 +31,5 @@ export type Position = {
 
 export type Expr = {
   str: string;
-  end: number;
+  line: number;
 }

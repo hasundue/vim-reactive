@@ -21,7 +21,7 @@ export async function parse(denops: Denops, session: Session) {
 
     const expr: Expr = {
       str: lines.join("\n"),
-      end: end.row,
+      line: end.row - 1,
     };
 
     return expr;
